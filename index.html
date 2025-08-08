@@ -3,23 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>可缩放月历</title>
     <style>
-        @font-face {
-            font-family: "PingFang SC";
-            src: local("PingFang SC"), sans-serif;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
         body {
             font-family: "PingFang SC", sans-serif;
-            margin: 0;
             padding: 20px;
-            background: transparent;
+            background: #f0f0f0;
         }
         .calendar-container {
             width: 340px;
+            min-width: 210px; /* 确保最小宽度下仍能显示7列 */
+            min-height: 280px;
             background: #fff;
             border: 1px solid #000;
-            padding: 20px;
-            box-sizing: border-box;
+            padding: 15px;
+            position: relative;
+            overflow: hidden; /* 防止内容溢出容器 */
         }
         .calendar-header {
             display: flex;
@@ -32,40 +36,34 @@
         .current-month {
             font-size: 18px;
             font-weight: 500;
+            white-space: nowrap; /* 防止月份标题换行 */
         }
         .nav-btn {
             background: transparent;
             border: 1px solid #000;
-            width: 24px;
-            height: 24px;
-            font-size: 14px;
+            width: 28px;
+            height: 28px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 0;
+            font-size: 16px;
         }
-        .weekdays {
+        .weekdays, .days {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
-            gap: 5px;
-            margin-bottom: 10px;
+            gap: 4px;
         }
-        .weekday {
+        .weekday, .day {
+            padding: 8px 2px;
             font-size: 14px;
             text-align: center;
-            padding: 5px 0;
-        }
-        .days {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 5px;
-        }
-        .day {
-            font-size: 14px;
-            text-align: center;
-            padding: 8px 0;
             border: 1px solid transparent;
+            min-height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden; /* 防止数字溢出单元格 */
         }
         .day.other-month {
             color: #ccc;
@@ -81,11 +79,38 @@
         .day:hover {
             border: 1px solid #000;
         }
+        /* 缩放手柄 */
+        .resize-handle {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 16px;
+            height: 16px;
+            background: #000;
+            cursor: nwse-resize;
+            z-index: 10;
+        }
+        .resize-handle::before, .resize-handle::after {
+            content: '';
+            position: absolute;
+            background: white;
+        }
+        .resize-handle::before {
+            width: 1px;
+            height: 8px;
+            right: 5px;
+            bottom: 0;
+        }
+        .resize-handle::after {
+            width: 8px;
+            height: 1px;
+            right: 0;
+            bottom: 5px;
+        }
     </style>
-    <title>月历</title>
 </head>
 <body>
-    <div class="calendar-container">
+    <div class="calendar-container" id="calendar">
         <div class="calendar-header">
             <button class="nav-btn" id="prev-month">&lt;</button>
             <div class="current-month" id="display-month">2025年8月</div>
@@ -105,6 +130,8 @@
         <div class="days" id="calendar-days">
             <!-- 日期将通过JS动态生成 -->
         </div>
+        
+        <div class="resize-handle" id="resizeHandle"></div>
     </div>
 
     <script>
@@ -207,6 +234,25 @@
                     daysContainer.appendChild(day);
                 }
             }
+
+            // 调整字体大小以适应容器宽度
+            adjustFontSize();
+        }
+
+        // 根据容器宽度调整字体大小，防止数字溢出
+        function adjustFontSize() {
+            const calendar = document.getElementById('calendar');
+            const containerWidth = calendar.offsetWidth;
+            // 计算合适的字体大小（基于容器宽度）
+            const baseFontSize = Math.max(12, Math.min(16, containerWidth / 24));
+            
+            // 应用到日期和星期
+            document.querySelectorAll('.day, .weekday').forEach(el => {
+                el.style.fontSize = `${baseFontSize}px`;
+            });
+            
+            // 调整月份标题大小
+            document.querySelector('.current-month').style.fontSize = `${baseFontSize + 2}px`;
         }
 
         // 初始化日历
@@ -231,6 +277,68 @@
             }
             generateCalendar(currentYear, currentMonth);
         });
+
+        // 实现缩放功能
+        function initResize() {
+            const calendar = document.getElementById('calendar');
+            const resizeHandle = document.getElementById('resizeHandle');
+            let isResizing = false;
+            let startX, startY, startWidth, startHeight;
+
+            // 鼠标按下时开始缩放
+            resizeHandle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = calendar.offsetWidth;
+                startHeight = calendar.offsetHeight;
+                
+                // 禁用过渡效果，使缩放更流畅
+                calendar.style.transition = 'none';
+                document.body.style.cursor = 'nwse-resize';
+                
+                e.preventDefault();
+            });
+
+            // 鼠标移动时调整大小
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                // 计算新尺寸
+                const newWidth = startWidth + (e.clientX - startX);
+                const newHeight = startHeight + (e.clientY - startY);
+                
+                // 应用最小尺寸限制
+                const minWidth = parseInt(getComputedStyle(calendar).minWidth);
+                const minHeight = parseInt(getComputedStyle(calendar).minHeight);
+                
+                if (newWidth >= minWidth) {
+                    calendar.style.width = `${newWidth}px`;
+                }
+                if (newHeight >= minHeight) {
+                    calendar.style.height = `${newHeight}px`;
+                }
+
+                // 实时调整字体大小
+                adjustFontSize();
+            });
+
+            // 鼠标释放时结束缩放
+            document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    calendar.style.transition = 'width 0.1s, height 0.1s';
+                    document.body.style.cursor = '';
+                }
+            });
+        }
+
+        // 初始化缩放功能
+        initResize();
+
+        // 窗口大小变化时调整字体
+        window.addEventListener('resize', adjustFontSize);
     </script>
 </body>
 </html>
+    
