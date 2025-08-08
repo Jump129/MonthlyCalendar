@@ -1,102 +1,98 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>永不遮挡的时间进度</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>可缩放月历</title>
   <style>
     * {
-      margin: 0; 
-      padding: 0; 
-      box-sizing: border-box; 
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
 
     body {
       font-family: "PingFang SC", sans-serif;
-      padding: 15px;
-      background: transparent;
-      overflow: hidden; 
+      padding: 20px;
+      /* 去掉灰色背景，改为透明背景，如果想要白色背景可设置为 background: #fff; */
+      background: transparent; 
     }
 
-    /* 容器：采用弹性布局，强制内容分层 */
-    .container {
-      width: 320px; 
-      min-width: 220px; 
-      min-height: 280px; 
+    .calendar-container {
+      width: 340px;
+      min-width: 210px; /* 确保最小宽度下仍能显示7列 */
+      min-height: 280px;
       background: #fff;
       border: 1px solid #000;
       padding: 15px;
-      position: relative; 
-      transition: all 0.3s ease; 
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between; /* 强制内容分散排列 */
+      position: relative;
+      overflow: hidden; /* 防止内容溢出容器 */
     }
 
-    /* 时间显示区：独立容器，避免挤压 */
-    .time-wrapper {
+    .calendar-header {
       display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 60px; /* 最低高度，防止被挤扁 */
-    }
-    .time-display {
-      font-size: 36px;
-      font-weight: 500;
-      color: #000;
-      letter-spacing: -1px;
-      white-space: nowrap; 
-      overflow: hidden; 
-      max-width: 100%; 
-    }
-
-    /* 进度条区：统一容器，保证间距 */
-    .progress-group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px; /* 模块之间强制间距 */
-    }
-
-    .progress-section {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 4px; /* 内部元素间距 */
-    }
-
-    .progress-label {
-      font-size: 14px;
-      color: #000;
-      font-weight: 500;
-      text-align: left;
-    }
-
-    .progress-bar-container {
-      display: flex;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #000;
     }
 
-    .progress-bar {
-      flex: 1; /* 进度条占满剩余空间 */
-      height: 6px;
-      background: #f0f0f0;
-      border-radius: 3px;
-      overflow: hidden;
-      transition: height 0.3s ease;
+    .current-month {
+      font-size: 18px;
+      font-weight: 500;
+      white-space: nowrap; /* 防止月份标题换行 */
     }
 
-    .progress-fill {
-      height: 100%;
-      background: #000;
-      transition: width 0.5s ease;
-      border-radius: 3px;
+    .nav-btn {
+      background: transparent;
+      border: 1px solid #000;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
     }
 
-    .progress-percent {
+    .weekdays,
+    .days {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .weekday,
+    .day {
+      padding: 8px 2px;
       font-size: 14px;
-      color: #000;
-      margin-left: 8px; /* 与进度条保持间距 */
+      text-align: center;
+      border: 1px solid transparent;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden; /* 防止数字溢出单元格 */
+    }
+
+    .day.other-month {
+      color: #ccc;
+    }
+
+    .day.today {
+      background: #000;
+      color: #fff;
+    }
+
+    .day.past {
+      text-decoration: line-through;
+      color: #999;
+    }
+
+    .day:hover {
+      border: 1px solid #000;
     }
 
     /* 缩放手柄 */
@@ -110,270 +106,260 @@
       cursor: nwse-resize;
       z-index: 10;
     }
+
     .resize-handle::before,
     .resize-handle::after {
       content: '';
       position: absolute;
-      background: #fff;
-    }
-    .resize-handle::before {
-      width: 1px;
-      height: 9px;
-      right: 6px;
-      bottom: 0;
-    }
-    .resize-handle::after {
-      width: 9px;
-      height: 1px;
-      right: 0;
-      bottom: 6px;
+      background: white;
     }
 
-    /* 最小尺寸保护 */
-    @media (max-width: 220px) {
-      .time-display {
-        font-size: 20px;
-      }
-      .progress-label, .progress-percent {
-        font-size: 12px;
-      }
-      .progress-bar {
-        height: 4px;
-      }
+    .resize-handle::before {
+      width: 1px;
+      height: 8px;
+      right: 5px;
+      bottom: 0;
+    }
+
+    .resize-handle::after {
+      width: 8px;
+      height: 1px;
+      right: 0;
+      bottom: 5px;
     }
   </style>
 </head>
+
 <body>
-  <div class="container" id="time-container">
-    <!-- 时间显示独立容器 -->
-    <div class="time-wrapper">
-      <div class="time-display" id="time">--:--:--</div>
+  <div class="calendar-container" id="calendar">
+    <div class="calendar-header">
+      <button class="nav-btn" id="prev-month">&lt;</button>
+      <div class="current-month" id="display-month">2025年8月</div>
+      <button class="nav-btn" id="next-month">&gt;</button>
     </div>
 
-    <!-- 进度条分组容器 -->
-    <div class="progress-group">
-      <div class="progress-section">
-        <div class="progress-label" id="year-label">2025年</div>
-        <div class="progress-bar-container">
-          <div class="progress-bar" id="year-bar">
-            <div class="progress-fill" id="year-progress"></div>
-          </div>
-          <div class="progress-percent" id="year-percent">0%</div>
-        </div>
-      </div>
-
-      <div class="progress-section">
-        <div class="progress-label" id="month-label">8月8日</div>
-        <div class="progress-bar-container">
-          <div class="progress-bar" id="month-bar">
-            <div class="progress-fill" id="month-progress"></div>
-          </div>
-          <div class="progress-percent" id="month-percent">0%</div>
-        </div>
-      </div>
-
-      <div class="progress-section">
-        <div class="progress-label" id="week-label">第32周</div>
-        <div class="progress-bar-container">
-          <div class="progress-bar" id="week-bar">
-            <div class="progress-fill" id="week-progress"></div>
-          </div>
-          <div class="progress-percent" id="week-percent">0%</div>
-        </div>
-      </div>
+    <div class="weekdays">
+      <div class="weekday">日</div>
+      <div class="weekday">一</div>
+      <div class="weekday">二</div>
+      <div class="weekday">三</div>
+      <div class="weekday">四</div>
+      <div class="weekday">五</div>
+      <div class="weekday">六</div>
     </div>
 
-    <!-- 缩放手柄 -->
-    <div class="resize-handle" id="resize-handle"></div>
+    <div class="days" id="calendar-days">
+      <!-- 日期将通过JS动态生成 -->
+    </div>
+
+    <div class="resize-handle" id="resizeHandle"></div>
   </div>
 
   <script>
-    // 核心目标：通过强制分层布局 + 动态适配，彻底解决遮挡
-    let isResizing = false;
-    let startX, startY, startWidth, startHeight;
-    let isShiftPressed = false;
-    const container = document.getElementById('time-container');
-    const resizeHandle = document.getElementById('resize-handle');
-    const timeDisplay = document.getElementById('time');
+    // 当前显示的年月
+    let currentDate = new Date();
+    let currentYear = currentDate.getFullYear();
+    let currentMonth = currentDate.getMonth(); // 0-11
+    // 今天的日期（用于比较）
+    const today = new Date();
+    const todayYear = today.getFullYear();
+    const todayMonth = today.getMonth();
+    const todayDate = today.getDate();
 
-    // 动态适配函数：同时调整字体、间距、进度条高度
-    function adjustLayout() {
-      const containerWidth = container.offsetWidth;
-      const containerHeight = container.offsetHeight;
+    // 生成日历
+    function generateCalendar(year, month) {
+      const daysContainer = document.getElementById('calendar-days');
+      daysContainer.innerHTML = '';
 
-      // 1. 时间显示适配
-      const timeFontSize = Math.max(
-        16, // 最小字号
-        containerWidth / 8 // 动态计算
-      );
-      timeDisplay.style.fontSize = `${timeFontSize}px`;
+      // 更新标题
+      const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+      document.getElementById('display-month').textContent = `${year}年${monthNames[month]}`;
 
-      // 2. 进度条文字适配
-      const progressFontSize = Math.min(
-        timeFontSize - 2, 
-        16
-      );
-      document.querySelectorAll('.progress-label, .progress-percent').forEach(el => {
-        el.style.fontSize = `${progressFontSize}px`;
+      // 获取当月第一天是星期几（0-6，0是星期日）
+      const firstDay = new Date(year, month, 1).getDay();
+
+      // 获取当月的天数
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      // 获取上个月的最后几天
+      const prevMonth = month === 0 ? 11 : month - 1;
+      const prevYear = month === 0 ? year - 1 : year;
+      const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+
+      // 添加上个月的日期
+      for (let i = 0; i < firstDay; i++) {
+        const day = document.createElement('div');
+        day.className = 'day other-month';
+
+        // 计算具体日期
+        const dayDate = daysInPrevMonth - firstDay + i + 1;
+        day.textContent = dayDate;
+
+        // 判断是否为过去的日期
+        if (
+          (prevYear < todayYear) ||
+          (prevYear === todayYear && prevMonth < todayMonth) ||
+          (prevYear === todayYear && prevMonth === todayMonth && dayDate < todayDate)
+        ) {
+          day.classList.add('past');
+        }
+
+        daysContainer.appendChild(day);
+      }
+
+      // 添加当月的日期
+      const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+      for (let i = 1; i <= daysInMonth; i++) {
+        const day = document.createElement('div');
+        day.className = 'day';
+        day.textContent = i;
+
+        // 高亮今天
+        if (isCurrentMonth && today.getDate() === i) {
+          day.classList.add('today');
+        }
+        // 标记过去的日期
+        else if (
+          (year < todayYear) ||
+          (year === todayYear && month < todayMonth) ||
+          (year === todayYear && month === todayMonth && i < todayDate)
+        ) {
+          day.classList.add('past');
+        }
+
+        daysContainer.appendChild(day);
+      }
+
+      // 计算需要添加多少个下个月的日期以填满网格
+      const totalDays = firstDay + daysInMonth;
+      const nextMonthDays = 7 - (totalDays % 7);
+      if (nextMonthDays !== 7) {
+        const nextMonth = month === 11 ? 0 : month + 1;
+        const nextYear = month === 11 ? year + 1 : year;
+
+        for (let i = 1; i <= nextMonthDays; i++) {
+          const day = document.createElement('div');
+          day.className = 'day other-month';
+          day.textContent = i;
+
+          // 判断是否为过去的日期
+          if (
+            (nextYear < todayYear) ||
+            (nextYear === todayYear && nextMonth < todayMonth) ||
+            (nextYear === todayYear && nextMonth === todayMonth && i < todayDate)
+          ) {
+            day.classList.add('past');
+          }
+
+          daysContainer.appendChild(day);
+        }
+      }
+
+      // 调整字体大小以适应容器宽度
+      adjustFontSize();
+    }
+
+    // 根据容器宽度调整字体大小，防止数字溢出
+    function adjustFontSize() {
+      const calendar = document.getElementById('calendar');
+      const containerWidth = calendar.offsetWidth;
+      // 计算合适的字体大小（基于容器宽度）
+      const baseFontSize = Math.max(12, Math.min(16, containerWidth / 24));
+
+      // 应用到日期和星期
+      document.querySelectorAll('.day, .weekday').forEach(el => {
+        el.style.fontSize = `${baseFontSize}px`;
       });
 
-      // 3. 进度条高度适配
-      const barHeight = Math.max(
-        4, // 最细高度
-        containerHeight / 70 // 动态计算
-      );
-      document.querySelectorAll('.progress-bar').forEach(bar => {
-        bar.style.height = `${barHeight}px`;
-      });
-
-      // 4. 间距适配（可选，极端情况可加）
-      // const gap = Math.max(8, containerHeight / 40);
-      // document.querySelector('.progress-group').style.gap = `${gap}px`;
+      // 调整月份标题大小
+      document.querySelector('.current-month').style.fontSize = `${baseFontSize + 2}px`;
     }
 
-    // 时间更新（强制调用适配）
-    function updateTime() {
-      const now = new Date();
-      const hours = now.getHours().toString().padStart(2, '0');
-      const minutes = now.getMinutes().toString().padStart(2, '0');
-      const seconds = now.getSeconds().toString().padStart(2, '0');
-      timeDisplay.textContent = `${hours}:${minutes}:${seconds}`;
-      adjustLayout(); // 每次更新必调
-    }
+    // 初始化日历
+    generateCalendar(currentYear, currentMonth);
 
-    // 进度条更新（保持原逻辑）
-    function updateYearProgress() {
-      const now = new Date();
-      const year = now.getFullYear();
-      const startOfYear = new Date(year, 0, 1);
-      const endOfYear = new Date(year, 11, 31);
+    // 上一个月
+    document.getElementById('prev-month').addEventListener('click', () => {
+      currentMonth--;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      }
+      generateCalendar(currentYear, currentMonth);
+    });
 
-      const totalDays = Math.ceil((endOfYear - startOfYear) / 86400000) + 1;
-      const daysPassed = Math.ceil((now - startOfYear) / 86400000) + 1;
-      const percentage = (daysPassed / totalDays) * 100;
+    // 下一个月
+    document.getElementById('next-month').addEventListener('click', () => {
+      currentMonth++;
+      if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+      generateCalendar(currentYear, currentMonth);
+    });
 
-      document.getElementById('year-progress').style.width = `${percentage}%`;
-      document.getElementById('year-percent').textContent = `${percentage.toFixed(1)}%`;
-      document.getElementById('year-label').textContent = `${year}年`;
-    }
-
-    function updateMonthProgress() {
-      const now = new Date();
-      const month = now.getMonth() + 1;
-      const day = now.getDate();
-      const year = now.getFullYear();
-      const daysInMonth = new Date(year, month, 0).getDate();
-      const percentage = (day / daysInMonth) * 100;
-
-      document.getElementById('month-label').textContent = `${month}月${day}日`;
-      document.getElementById('month-progress').style.width = `${percentage}%`;
-      document.getElementById('month-percent').textContent = `${percentage.toFixed(1)}%`;
-    }
-
-    function getWeekNumber(date) {
-      const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-      const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
-      const firstDayOfWeek = firstDayOfYear.getDay() || 7;
-      const dayOfYear = pastDaysOfYear + 1;
-      const weekNumber = Math.ceil((dayOfYear + firstDayOfWeek - 2) / 7);
-      return weekNumber;
-    }
-
-    function updateWeekProgress() {
-      const now = new Date();
-      let dayOfWeek = now.getDay();
-      dayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
-
-      const weekNumber = getWeekNumber(now);
-      const percentage = (dayOfWeek / 7) * 100;
-
-      document.getElementById('week-label').textContent = `第${weekNumber}周`;
-      document.getElementById('week-progress').style.width = `${percentage}%`;
-      document.getElementById('week-percent').textContent = `${percentage.toFixed(1)}%`;
-    }
-
-    // 初始化 + 自动更新
-    updateTime();
-    updateYearProgress();
-    updateMonthProgress();
-    updateWeekProgress();
-    setInterval(updateTime, 1000);
-    setInterval(updateYearProgress, 60000);
-    setInterval(updateMonthProgress, 60000);
-    setInterval(updateWeekProgress, 60000);
-
-    // 缩放逻辑（加强版）
+    // 实现缩放功能
     function initResize() {
-      // Shift 键监听
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Shift') isShiftPressed = true;
-      });
-      document.addEventListener('keyup', (e) => {
-        if (e.key === 'Shift') isShiftPressed = false;
-      });
+      const calendar = document.getElementById('calendar');
+      const resizeHandle = document.getElementById('resizeHandle');
+      let isResizing = false;
+      let startX, startY, startWidth, startHeight;
 
-      // 开始缩放
+      // 鼠标按下时开始缩放
       resizeHandle.addEventListener('mousedown', (e) => {
         isResizing = true;
         startX = e.clientX;
         startY = e.clientY;
-        startWidth = container.offsetWidth;
-        startHeight = container.offsetHeight;
-        container.style.transition = 'none'; // 关闭过渡更跟手
+        startWidth = calendar.offsetWidth;
+        startHeight = calendar.offsetHeight;
+
+        // 禁用过渡效果，使缩放更流畅
+        calendar.style.transition = 'none';
         document.body.style.cursor = 'nwse-resize';
+
         e.preventDefault();
       });
 
-      // 调整尺寸
+      // 鼠标移动时调整大小
       document.addEventListener('mousemove', (e) => {
         if (!isResizing) return;
 
-        let newWidth = startWidth + (e.clientX - startX);
-        let newHeight = startHeight + (e.clientY - startY);
+        // 计算新尺寸
+        const newWidth = startWidth + (e.clientX - startX);
+        const newHeight = startHeight + (e.clientY - startY);
 
-        // 最小尺寸保护（覆盖CSS的min-width）
-        const minWidth = 220;
-        const minHeight = 280;
-        newWidth = Math.max(newWidth, minWidth);
-        newHeight = Math.max(newHeight, minHeight);
+        // 应用最小尺寸限制
+        const minWidth = parseInt(getComputedStyle(calendar).minWidth);
+        const minHeight = parseInt(getComputedStyle(calendar).minHeight);
 
-        // 等比例缩放
-        if (isShiftPressed) {
-          const ratio = startWidth / startHeight;
-          if (newWidth / newHeight > ratio) {
-            newHeight = newWidth / ratio;
-          } else {
-            newWidth = newHeight * ratio;
-          }
-          // 二次保护
-          newWidth = Math.max(newWidth, minWidth);
-          newHeight = Math.max(newHeight, minHeight);
+        if (newWidth >= minWidth) {
+          calendar.style.width = `${newWidth}px`;
+        }
+        if (newHeight >= minHeight) {
+          calendar.style.height = `${newHeight}px`;
         }
 
-        container.style.width = `${newWidth}px`;
-        container.style.height = `${newHeight}px`;
-        adjustLayout(); // 实时适配
+        // 实时调整字体大小
+        adjustFontSize();
       });
 
-      // 结束缩放
+      // 鼠标释放时结束缩放
       document.addEventListener('mouseup', () => {
         if (isResizing) {
           isResizing = false;
-          container.style.transition = 'all 0.3s ease'; // 恢复过渡
+          calendar.style.transition = 'width 0.1s, height 0.1s';
           document.body.style.cursor = '';
-          adjustLayout(); // 最终适配
         }
       });
     }
 
-    // 页面加载后初始化
-    window.addEventListener('load', () => {
-      adjustLayout();
-      initResize();
-    });
+    // 初始化缩放功能
+    initResize();
 
-    // 窗口变化时也适配（应对浏览器缩放）
-    window.addEventListener('resize', adjustLayout);
+    // 窗口大小变化时调整字体
+    window.addEventListener('resize', adjustFontSize);
   </script>
 </body>
+
 </html>
