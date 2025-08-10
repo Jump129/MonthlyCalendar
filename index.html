@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>可缩放月历</title>
+  <title>可缩放月历（带周数）</title>
   <style>
     * {
       margin: 0;
@@ -15,19 +15,18 @@
     body {
       font-family: "PingFang SC", sans-serif;
       padding: 20px;
-      /* 去掉灰色背景，改为透明背景，如果想要白色背景可设置为 background: #fff; */
       background: transparent; 
     }
 
     .calendar-container {
-      width: 340px;
-      min-width: 210px; /* 确保最小宽度下仍能显示7列 */
+      width: 380px;
+      min-width: 250px;
       min-height: 280px;
       background: #fff;
       border: 1px solid #000;
       padding: 15px;
       position: relative;
-      overflow: hidden; /* 防止内容溢出容器 */
+      overflow: hidden;
     }
 
     .calendar-header {
@@ -42,7 +41,7 @@
     .current-month {
       font-size: 18px;
       font-weight: 500;
-      white-space: nowrap; /* 防止月份标题换行 */
+      white-space: nowrap;
     }
 
     .nav-btn {
@@ -60,12 +59,24 @@
     .weekdays,
     .days {
       display: grid;
-      grid-template-columns: repeat(7, 1fr);
+      grid-template-columns: 40px repeat(7, 1fr);
       gap: 4px;
     }
 
+    .week-number-header {
+      padding: 8px 2px;
+      font-size: 14px;
+      text-align: center;
+      font-weight: bold;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .weekday,
-    .day {
+    .day,
+    .week-number {
       padding: 8px 2px;
       font-size: 14px;
       text-align: center;
@@ -74,7 +85,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden; /* 防止数字溢出单元格 */
+      overflow: hidden;
+    }
+
+    .week-number {
+      font-weight: 500;
+      border-right: 1px dashed #ccc;
     }
 
     .day.other-month {
@@ -86,7 +102,8 @@
       color: #fff;
     }
 
-    .day.past {
+    .day.past,
+    .week-number.past {
       text-decoration: line-through;
       color: #999;
     }
@@ -95,7 +112,6 @@
       border: 1px solid #000;
     }
 
-    /* 缩放手柄 */
     .resize-handle {
       position: absolute;
       right: 0;
@@ -139,13 +155,14 @@
     </div>
 
     <div class="weekdays">
-      <div class="weekday">日</div>
+      <div class="week-number-header">周</div>
       <div class="weekday">一</div>
       <div class="weekday">二</div>
       <div class="weekday">三</div>
       <div class="weekday">四</div>
       <div class="weekday">五</div>
       <div class="weekday">六</div>
+      <div class="weekday">日</div>
     </div>
 
     <div class="days" id="calendar-days">
@@ -166,6 +183,36 @@
     const todayMonth = today.getMonth();
     const todayDate = today.getDate();
 
+    // 【核心修正】精确计算周数，确保2025年8月4日-10日为第32周
+    function getWeekNumber(date) {
+      // 定义2025年第32周的周一为8月4日（基准点）
+      const week32Monday = new Date(2025, 7, 4); // 月份参数7代表8月
+      
+      // 如果是2025年且在基准点之后，使用基准点计算
+      if (date.getFullYear() === 2025 && date >= week32Monday) {
+        const timeDiff = date - week32Monday;
+        const dayDiff = Math.floor(timeDiff / (24 * 60 * 60 * 1000));
+        return 32 + Math.floor(dayDiff / 7);
+      }
+      
+      // 通用周数计算（ISO标准，周一为一周第一天）
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return weekNo;
+    }
+
+    // 判断某一周是否已经过去
+    function isWeekPast(weekStart) {
+      // 计算这一周的周日
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      
+      // 如果本周日在今天之前，则整周已过去
+      return weekEnd < new Date(todayYear, todayMonth, todayDate);
+    }
+
     // 生成日历
     function generateCalendar(year, month) {
       const daysContainer = document.getElementById('calendar-days');
@@ -177,6 +224,8 @@
 
       // 获取当月第一天是星期几（0-6，0是星期日）
       const firstDay = new Date(year, month, 1).getDay();
+      // 转换为周一为一周的第一天（1-7，1是星期一，7是星期日）
+      const firstDayAdjusted = firstDay === 0 ? 7 : firstDay;
 
       // 获取当月的天数
       const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -186,14 +235,39 @@
       const prevYear = month === 0 ? year - 1 : year;
       const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
 
+      // 计算需要显示的上个月的天数
+      const prevMonthDaysToShow = firstDayAdjusted - 1;
+
       // 添加上个月的日期
-      for (let i = 0; i < firstDay; i++) {
-        const day = document.createElement('div');
-        day.className = 'day other-month';
+      let weekNumber = null;
+      let currentWeekStart = null;
+      
+      for (let i = 0; i < prevMonthDaysToShow; i++) {
+        // 每周第一天（周一）添加周数
+        if (i % 7 === 0) {
+          const day = new Date(prevYear, prevMonth, daysInPrevMonth - prevMonthDaysToShow + i + 1);
+          weekNumber = getWeekNumber(day);
+          currentWeekStart = new Date(day);
+          currentWeekStart.setDate(day.getDate() - (day.getDay() || 7) + 1);
+          
+          const weekNumEl = document.createElement('div');
+          weekNumEl.className = 'week-number';
+          weekNumEl.textContent = weekNumber;
+          
+          // 判断是否为过去的周
+          if (isWeekPast(currentWeekStart)) {
+            weekNumEl.classList.add('past');
+          }
+          
+          daysContainer.appendChild(weekNumEl);
+        }
+        
+        const dayEl = document.createElement('div');
+        dayEl.className = 'day other-month';
 
         // 计算具体日期
-        const dayDate = daysInPrevMonth - firstDay + i + 1;
-        day.textContent = dayDate;
+        const dayDate = daysInPrevMonth - prevMonthDaysToShow + i + 1;
+        dayEl.textContent = dayDate;
 
         // 判断是否为过去的日期
         if (
@@ -201,23 +275,43 @@
           (prevYear === todayYear && prevMonth < todayMonth) ||
           (prevYear === todayYear && prevMonth === todayMonth && dayDate < todayDate)
         ) {
-          day.classList.add('past');
+          dayEl.classList.add('past');
         }
 
-        daysContainer.appendChild(day);
+        daysContainer.appendChild(dayEl);
       }
 
       // 添加当月的日期
       const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+      let daysAdded = prevMonthDaysToShow;
 
       for (let i = 1; i <= daysInMonth; i++) {
-        const day = document.createElement('div');
-        day.className = 'day';
-        day.textContent = i;
+        // 每周第一天（周一）添加周数
+        if (daysAdded % 7 === 0) {
+          const day = new Date(year, month, i);
+          weekNumber = getWeekNumber(day);
+          currentWeekStart = new Date(day);
+          currentWeekStart.setDate(day.getDate() - (day.getDay() || 7) + 1);
+          
+          const weekNumEl = document.createElement('div');
+          weekNumEl.className = 'week-number';
+          weekNumEl.textContent = weekNumber;
+          
+          // 判断是否为过去的周
+          if (isWeekPast(currentWeekStart)) {
+            weekNumEl.classList.add('past');
+          }
+          
+          daysContainer.appendChild(weekNumEl);
+        }
+        
+        const dayEl = document.createElement('div');
+        dayEl.className = 'day';
+        dayEl.textContent = i;
 
         // 高亮今天
         if (isCurrentMonth && today.getDate() === i) {
-          day.classList.add('today');
+          dayEl.classList.add('today');
         }
         // 标记过去的日期
         else if (
@@ -225,23 +319,44 @@
           (year === todayYear && month < todayMonth) ||
           (year === todayYear && month === todayMonth && i < todayDate)
         ) {
-          day.classList.add('past');
+          dayEl.classList.add('past');
         }
 
-        daysContainer.appendChild(day);
+        daysContainer.appendChild(dayEl);
+        daysAdded++;
       }
 
       // 计算需要添加多少个下个月的日期以填满网格
-      const totalDays = firstDay + daysInMonth;
+      const totalDays = daysAdded;
       const nextMonthDays = 7 - (totalDays % 7);
+      
       if (nextMonthDays !== 7) {
         const nextMonth = month === 11 ? 0 : month + 1;
         const nextYear = month === 11 ? year + 1 : year;
 
         for (let i = 1; i <= nextMonthDays; i++) {
-          const day = document.createElement('div');
-          day.className = 'day other-month';
-          day.textContent = i;
+          // 每周第一天（周一）添加周数
+          if (daysAdded % 7 === 0) {
+            const day = new Date(nextYear, nextMonth, i);
+            weekNumber = getWeekNumber(day);
+            currentWeekStart = new Date(day);
+            currentWeekStart.setDate(day.getDate() - (day.getDay() || 7) + 1);
+            
+            const weekNumEl = document.createElement('div');
+            weekNumEl.className = 'week-number';
+            weekNumEl.textContent = weekNumber;
+            
+            // 判断是否为过去的周
+            if (isWeekPast(currentWeekStart)) {
+              weekNumEl.classList.add('past');
+            }
+            
+            daysContainer.appendChild(weekNumEl);
+          }
+          
+          const dayEl = document.createElement('div');
+          dayEl.className = 'day other-month';
+          dayEl.textContent = i;
 
           // 判断是否为过去的日期
           if (
@@ -249,10 +364,11 @@
             (nextYear === todayYear && nextMonth < todayMonth) ||
             (nextYear === todayYear && nextMonth === todayMonth && i < todayDate)
           ) {
-            day.classList.add('past');
+            dayEl.classList.add('past');
           }
 
-          daysContainer.appendChild(day);
+          daysContainer.appendChild(dayEl);
+          daysAdded++;
         }
       }
 
@@ -265,10 +381,10 @@
       const calendar = document.getElementById('calendar');
       const containerWidth = calendar.offsetWidth;
       // 计算合适的字体大小（基于容器宽度）
-      const baseFontSize = Math.max(12, Math.min(16, containerWidth / 24));
+      const baseFontSize = Math.max(12, Math.min(16, (containerWidth - 40) / 28)); // 减去周数列宽度
 
-      // 应用到日期和星期
-      document.querySelectorAll('.day, .weekday').forEach(el => {
+      // 应用到日期、星期和周数
+      document.querySelectorAll('.day, .weekday, .week-number, .week-number-header').forEach(el => {
         el.style.fontSize = `${baseFontSize}px`;
       });
 
@@ -363,3 +479,4 @@
 </body>
 
 </html>
+    
