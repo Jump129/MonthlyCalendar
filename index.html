@@ -39,7 +39,7 @@
     }
 
     .current-month {
-      font-size: 18px;
+      font-size: 18px; /* 固定月份标题大小 */
       font-weight: 500;
       white-space: nowrap;
     }
@@ -53,7 +53,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 16px; /* 固定按钮文字大小 */
     }
 
     .weekdays,
@@ -65,7 +65,7 @@
 
     .week-number-header {
       padding: 8px 2px;
-      font-size: 14px;
+      font-size: 14px; /* 固定周数标题大小 */
       text-align: center;
       font-weight: bold;
       min-height: 34px;
@@ -78,7 +78,7 @@
     .day,
     .week-number {
       padding: 8px 2px;
-      font-size: 14px;
+      font-size: 14px; /* 固定日期和周数文字大小 */
       text-align: center;
       border: 1px solid transparent;
       min-height: 34px;
@@ -183,7 +183,7 @@
     const todayMonth = today.getMonth();
     const todayDate = today.getDate();
 
-    // 【核心修正】精确计算周数，确保2025年8月4日-10日为第32周
+    // 精确计算周数，确保2025年8月4日-10日为第32周
     function getWeekNumber(date) {
       // 定义2025年第32周的周一为8月4日（基准点）
       const week32Monday = new Date(2025, 7, 4); // 月份参数7代表8月
@@ -371,25 +371,6 @@
           daysAdded++;
         }
       }
-
-      // 调整字体大小以适应容器宽度
-      adjustFontSize();
-    }
-
-    // 根据容器宽度调整字体大小，防止数字溢出
-    function adjustFontSize() {
-      const calendar = document.getElementById('calendar');
-      const containerWidth = calendar.offsetWidth;
-      // 计算合适的字体大小（基于容器宽度）
-      const baseFontSize = Math.max(12, Math.min(16, (containerWidth - 40) / 28)); // 减去周数列宽度
-
-      // 应用到日期、星期和周数
-      document.querySelectorAll('.day, .weekday, .week-number, .week-number-header').forEach(el => {
-        el.style.fontSize = `${baseFontSize}px`;
-      });
-
-      // 调整月份标题大小
-      document.querySelector('.current-month').style.fontSize = `${baseFontSize + 2}px`;
     }
 
     // 初始化日历
@@ -415,7 +396,7 @@
       generateCalendar(currentYear, currentMonth);
     });
 
-    // 实现缩放功能
+    // 实现缩放功能（仅改变容器大小，不改变字体）
     function initResize() {
       const calendar = document.getElementById('calendar');
       const resizeHandle = document.getElementById('resizeHandle');
@@ -455,9 +436,6 @@
         if (newHeight >= minHeight) {
           calendar.style.height = `${newHeight}px`;
         }
-
-        // 实时调整字体大小
-        adjustFontSize();
       });
 
       // 鼠标释放时结束缩放
@@ -472,11 +450,7 @@
 
     // 初始化缩放功能
     initResize();
-
-    // 窗口大小变化时调整字体
-    window.addEventListener('resize', adjustFontSize);
   </script>
 </body>
 
 </html>
-    
